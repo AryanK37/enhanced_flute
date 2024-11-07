@@ -92,8 +92,14 @@ module mkCPU_StageD #(Bit #(4)  verbosity, MISA misa)
    // ----------------
    // Combinational output function
 
+   // Import the register rename table
+   RegRenamingTable regRenamingTable <- mkRegRenamingTable;
+
    function Output_StageD fv_out;
       let decoded_instr = fv_decode (instr);
+
+      // assign the new physical register variable
+      decoded_instr.phyreg = regRenamingTable.rename[0].claimRename(decoded_instr.rd);
 
       Output_StageD  output_stageD = ?;
 
