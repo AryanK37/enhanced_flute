@@ -67,7 +67,6 @@ endinterface
 
 // ================================================================
 // Implementation module
-
 module mkCPU_StageF #(Bit #(4)  verbosity,
 		      IMem_IFC  imem)
                     (CPU_StageF_IFC);
@@ -78,7 +77,7 @@ module mkCPU_StageF #(Bit #(4)  verbosity,
    Wire #(Bool)      dw_redirecting <- mkDWire (False);
 
    Reg #(Bool)       rg_full  <- mkReg (False);
-   Reg #(Epoch)      rg_epoch <- mkReg (0);               // Toggles on redirections
+   Reg #(Epoch)      rg_epoch <- mkRegWrapper (0);               // Toggles on redirections
    Reg #(Priv_Mode)  rg_priv  <- mkRegU;
 
    Branch_Predictor_IFC branch_predictor <- mkBranch_Predictor;
@@ -166,5 +165,7 @@ module mkCPU_StageF #(Bit #(4)  verbosity,
 endmodule
 
 // ================================================================
+// Helper function to create a register with an initial value
+
 
 endpackage

@@ -30,8 +30,8 @@ interface RTCommit;
 endinterface
 
 interface RegRenamingTable;
-    interface Vector#(SupSize, RTRename) rename; // rename port
-    interface Vector#(SupSize, RTCommit) commit; // commit port
+    interface RTRename rename; // rename port
+    interface RTCommit commit; // commit port
 
     // This subinterface contains the methods specifying correct and incorrect
     // speculation. If the speculation is correct, the dependencies on that
@@ -95,7 +95,7 @@ module mkRegRenamingTable(RegRenamingTable) provisos (
 
     // non-speculative renaming table at commit port
     // initially arch reg i --> phy reg i
-    Vector#(NumArchReg, Ehr#(SupSize, PhyRIndx)) renaming_table <- genWithM(compose(mkEhr, fromInteger));
+    Vector#(NumArchReg, Ehr#PhyRIndx renaming_table <- genWithM(compose(mkEhr, fromInteger));
 
     // A FIFO of
     // - in-flight renaming: when valid = True i.e. within [enqP, deqP)
@@ -114,16 +114,16 @@ module mkRegRenamingTable(RegRenamingTable) provisos (
     Reg#(indexT) deqP <- mkReg(0); // point to commit renaming and make phy reg free
 
     // wires/EHRs to record actions
-    Vector#(SupSize, RWire#(RenameClaim)) claimEn <- replicateM(mkUnsafeRWire);
-    Vector#(SupSize, PulseWire) commitEn <- replicateM(mkPulseWire);
+    RWire#(RenameClaim) claimEn <- replicateM(mkUnsafeRWire);
+    PulseWire commitEn <- replicateM(mkPulseWire);
     RWire#(RTWrongSpec) wrongSpecEn <- mkRWire;
 
     // ordering regs
-    Vector#(SupSize, Reg#(Bool)) commit_SB_rename <- replicateM(mkRevertingVirtualReg(True));
+    Reg#(Bool)) commit_SB_rename <- replicateM(mkRevertingVirtualReg(True));
     Reg#(Bool) commit_SB_wrongSpec <- mkRevertingVirtualReg(True);
 
     // wrong spec conflict with rename
-    Vector#(SupSize, RWire#(void)) wrongSpec_rename_conflict <- replicateM(mkRWire);
+    RWire#(void) wrongSpec_rename_conflict <- replicateM(mkRWire);
 
     function indexT getNextIndex(indexT idx);
         return idx == fromInteger(valueof(size) - 1) ? 0 : idx + 1;
@@ -141,14 +141,14 @@ module mkRegRenamingTable(RegRenamingTable) provisos (
     function Bit#(TLog#(NumArchReg)) getRTIndex(ArchRIndx arch) = pack(arch);
 
     // vector of index to claim free phy regs for each rename port
-    Vector#(SupSize, indexT) claimIndex;
-    for(Integer i = 0; i < valueof(SupSize); i = i+1) begin
+    indexT claimIndex;
+    for(Integer i = 0; i < 1; i = i+1) begin
         claimIndex[i] = incrIndex(enqP, fromInteger(i));
     end
 
     // vector of index to commit phy regs for each commit port
-    Vector#(SupSize, indexT) commitIndex;
-    for(Integer i = 0; i < valueof(SupSize); i = i+1) begin
+    indexT commitIndex;
+    for(Integer i = 0; i < size; i = i+1) begin
         commitIndex[i] = incrIndex(deqP, fromInteger(i));
     end
 
@@ -199,10 +199,10 @@ module mkRegRenamingTable(RegRenamingTable) provisos (
     // canonicalize deq, wrongSpec/enq
     (* fire_when_enabled, no_implicit_conditions *)
     rule canon;
-        Vector#(SupSize, SupWaySel) supIdxVec = genWith(fromInteger);
+        SupWaySel supIdxVec = genWith(fromInteger);
 
         // apply commit actions
-        for(Integer i = 0; i < valueof(SupSize); i = i+1) begin
+        for(Integer i = 0; i < size; i = i+1) begin
             if(commitEn[i]) begin
                 indexT curDeqP = commitIndex[i]; // deqP for new renamings
                 PhyRIndx commit_phy_reg = new_renamings_phy[curDeqP];
@@ -230,12 +230,12 @@ module mkRegRenamingTable(RegRenamingTable) provisos (
         if(find(notCommit, supIdxVec) matches tagged Valid .idx) begin
             nextDeqP = commitIndex[idx];
             // sanity check: commit is done consecutively
-            for(Integer i = 0; i < valueof(SupSize); i = i+1) begin
+            for(Integer i = 0; i < size; i = i+1) begin
                 doAssert((fromInteger(i) < idx) == commitEn[i], "commit must be consecutive");
             end
         end
         else begin
-            nextDeqP = incrIndex(deqP, fromInteger(valueof(SupSize)));
+            nextDeqP = incrIndex(deqP, fromInteger(size));
         end
         deqP <= nextDeqP;
 
@@ -267,7 +267,7 @@ module mkRegRenamingTable(RegRenamingTable) provisos (
         end
         else begin
             // claim phy reg
-            for(Integer i = 0; i < valueof(SupSize); i = i+1) begin
+            for(Integer i = 0; i < size; i = i+1) begin
                 if(claimEn[i].wget matches tagged Valid .claim) begin
                     indexT curEnqP = claimIndex[i];
                     new_renamings_arch[curEnqP] <= claim.arch; // keep phy reg unchanged
@@ -284,12 +284,12 @@ module mkRegRenamingTable(RegRenamingTable) provisos (
             if(find(notClaim, supIdxVec) matches tagged Valid .idx) begin
                 nextEnqP = claimIndex[idx];
                 // sanity check: rename is consecutive
-                for(Integer i = 0; i < valueof(SupSize); i = i+1) begin
+                for(Integer i = 0; i < size; i = i+1) begin
                     doAssert((fromInteger(i) < idx) == isValid(claimEn[i].wget), "claim is consecutive");
                 end
             end
             else begin
-                nextEnqP = incrIndex(enqP, fromInteger(valueof(SupSize)));
+                nextEnqP = incrIndex(enqP, fromInteger(size));
             end
             enqP <= nextEnqP;
         end
@@ -378,8 +378,8 @@ module mkRegRenamingTable(RegRenamingTable) provisos (
         return arch_reg matches tagged Fpu .* ? True : False;
     endfunction
 
-    Vector#(SupSize, RTRename) renameIfc;
-    for(Integer i = 0; i < valueof(SupSize); i = i+1) begin
+    RTRename renameIfc;
+    for(Integer i = 0; i < size; i = i+1) begin
         // XXX we always claim a free phy reg, but only return it if arch dst reg is valid
         Bool guard = !valid[claimIndex[i]][valid_get_port];
         PhyRIndx claim_phy_reg = get_dst_renaming(i);
@@ -430,8 +430,8 @@ module mkRegRenamingTable(RegRenamingTable) provisos (
         endinterface);
     end
 
-    Vector#(SupSize, RTCommit) commitIfc;
-    for(Integer i = 0; i < valueof(SupSize); i = i+1) begin
+    RTCommit commitIfc;
+    for(Integer i = 0; i < size; i = i+1) begin
         Bool guard = valid[commitIndex[i]][valid_commit_port] &&
                      all(id, readVReg(commit_SB_rename)) && // ordering: commit < rename
                      commit_SB_wrongSpec; // ordering: commit < wrongSpec
@@ -454,7 +454,7 @@ module mkRegRenamingTable(RegRenamingTable) provisos (
                 specTag: specTag
             });
             // conflict with rename
-            for(Integer i = 0; i < valueof(SupSize); i = i+1) begin
+            for(Integer i = 0; i < size; i = i+1) begin
                 wrongSpec_rename_conflict[i].wset(?);
             end
             // order after commit
