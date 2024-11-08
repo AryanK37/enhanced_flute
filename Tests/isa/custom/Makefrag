@@ -1,0 +1,11 @@
+#=======================================================================
+# Makefrag for custom tests
+#-----------------------------------------------------------------------
+
+custom_sc_tests = \
+	func_add \
+	func_mul \
+	func_mix \
+
+
+custom_p_tests = $(addprefix custom-p-, $(custom_sc_tests))
