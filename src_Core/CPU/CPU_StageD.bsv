@@ -109,26 +109,29 @@ module mkCPU_StageD #(Bit #(4)  verbosity, MISA misa)
       end
       else begin
 	 output_stageD.ostatus        = OSTATUS_PIPE;
-	 output_stageD.data_to_stage1 = Data_StageD_to_Stage1 {pc:             rg_data.pc,
-							       priv:           rg_data.priv,
-							       epoch:          rg_data.epoch,
-							       is_i32_not_i16: rg_data.is_i32_not_i16,
-							       exc:            rg_data.exc,
-							       exc_code:       rg_data.exc_code,
-							       tval:           rg_data.tval,
-							       instr:          instr,
-`ifdef ISA_C
-							       instr_C:        instr_C,
-`endif
-							       pred_pc:        rg_data.pred_pc,
-							       decoded_instr:  decoded_instr};
-      end
+//	 output_stageD.data_to_stage1 = Data_StageD_to_Stage1 {pc:             rg_data.pc,
+//							       priv:           rg_data.priv,
+//							       epoch:          rg_data.epoch,
+//							       is_i32_not_i16: rg_data.is_i32_not_i16,
+//							       exc:            rg_data.exc,
+//							       exc_code:       rg_data.exc_code,
+//							       tval:           rg_data.tval,
+//							       instr:          instr,
+//`ifdef ISA_C
+//							       instr_C:        instr_C,
+//`endif
+//							       pred_pc:        rg_data.pred_pc,
+//							       decoded_instr:  decoded_instr};
+//      end
+
+
 
       return output_stageD;
    endfunction: fv_out
 
    // ================================================================
    // INTERFACE
+
 
    // ---- Reset
    interface server_reset = toGPServer (f_reset_reqs, f_reset_rsps);

@@ -290,38 +290,120 @@ endinstance
 // ----------------
 // Data_StageD_to_Stage1
 
+// Make a reservation station for FPUMulDiv instructions, Generic Instructions (ALU instructions), and Load Store instructions
+
+typedef enum {FPUMulDiv, ALUInstructions, Load, Store} OperationType deriving (Eq, Bits);
+
 typedef struct {
-   Addr           pc;
-   Priv_Mode      priv;               // Priv at which instr was fetched
-   Epoch          epoch;              // Branch prediction epoch
+    OperationType opType;
+    PhyRIndx      dest;      // Destination register index
+    Data          operand1;  // Operand 1
+    Data          operand2;  // Operand 2
+} ReservationStationEntry deriving (Bits);
 
-   Bool           is_i32_not_i16;     // True if a regular 32b instr, not a compressed (16b) instr
+module mkGenericReservationStation#(numeric type RS_SIZE)
+    (Empty#(ReservationStationEntry)) 
+    provisos (Add#(RS_SIZE, 1, RS_CAPACITY)); // Ensure capacity matches size
+    FIFO#(ReservationStationEntry) fifo <- mkSizedFIFO(RS_SIZE);
 
-   Bool           exc;                // True if exc in icache access
-   Exc_Code       exc_code;
-   WordXL         tval;               // Trap value; can be different from PC, with 'C' extension
+    method Action enqueue(ReservationStationEntry entry);
+        fifo.enq(entry);
+    endmethod
 
-   Instr          instr;              // Valid if no exception
-   Instr_C        instr_C;            // Valid if no exception; original compressed instruction
-   WordXL         pred_pc;            // Predicted next pc
-   Decoded_Instr  decoded_instr;
-   } Data_StageD_to_Stage1
-deriving (Bits);
+    method Maybe#(ReservationStationEntry) dequeue();
+        return fifo.first();
+    endmethod
 
-instance FShow #(Data_StageD_to_Stage1);
-   function Fmt fshow (Data_StageD_to_Stage1 x);
-      Fmt fmt = $format ("data_to_Stage1 {pc:%0h  priv:%0d  epoch:%0d", x.pc, x.priv, x.epoch);
-      if (x.exc)
-	 fmt = fmt + $format ("  ", fshow_trap_Exc_Code (x.exc_code), " tval %0h", x.tval);
-      else begin
-	 if (x.is_i32_not_i16)
-	    fmt = fmt + $format ("  instr_C:%0h", x.instr_C);
-	 fmt = fmt + $format ("  instr:%0h  pred_pc:%0h", x.instr, x.pred_pc);
-      end
-      fmt = fmt + $format ("}");
-      return fmt;
-   endfunction
-endinstance
+    method Action dequeueCommit();
+        fifo.deq();
+    endmethod
+
+    method Bool isFull();
+        return fifo.isFull();
+    endmethod
+
+    method Bool isEmpty();
+        return fifo.isEmpty();
+    endmethod
+endmodule
+
+
+// superscalar
+`define sizeSup 2
+
+// speculation
+`define NUM_EPOCHS 8
+`define NUM_SPEC_TAGS 8
+
+// LSQ
+`define LDQ_SIZE 3
+`define STQ_SIZE 3
+`define SB_SIZE 2
+
+// reservation station sizes
+`define RS_ALU_SIZE 5
+`define RS_FPUMULDIV_SIZE 3
+
+
+// Create instances for different operation types
+let fpuMulDivRS <- mkGenericReservationStation(`RS_FPUMULDIV_SIZE);
+let aluRS <- mkGenericReservationStation(`RS_ALU_SIZE);
+let loadRS <- mkGenericReservationStation(`RS_LOAD_SIZE);
+let storeRS <- mkGenericReservationStation(`RS_STORE_SIZE);
+
+//typedef struct {
+//   Addr           pc;
+//   Priv_Mode      priv;               // Priv at which instr was fetched
+//   Epoch          epoch;              // Branch prediction epoch
+//
+//   Bool           is_i32_not_i16;     // True if a regular 32b instr, not a compressed (16b) instr
+//
+//   Bool           exc;                // True if exc in icache access
+//   Exc_Code       exc_code;
+//   WordXL         tval;               // Trap value; can be different from PC, with 'C' extension
+//
+//   Instr          instr;              // Valid if no exception
+//   Instr_C        instr_C;            // Valid if no exception; original compressed instruction
+//   WordXL         pred_pc;            // Predicted next pc
+//   Decoded_Instr  decoded_instr;
+//   } Data_StageD_to_Stage1
+//deriving (Bits);
+
+//instance FShow #(Data_StageD_to_Stage1);
+//   function Fmt fshow (Data_StageD_to_Stage1 x);
+//      Fmt fmt = $format ("data_to_Stage1 {pc:%0h  priv:%0d  epoch:%0d", x.pc, x.priv, x.epoch);
+//      if (x.exc)
+//	 fmt = fmt + $format ("  ", fshow_trap_Exc_Code (x.exc_code), " tval %0h", x.tval);
+//      else begin
+//	 if (x.is_i32_not_i16)
+//	    fmt = fmt + $format ("  instr_C:%0h", x.instr_C);
+//	 fmt = fmt + $format ("  instr:%0h  pred_pc:%0h", x.instr, x.pred_pc);
+//      end
+//      fmt = fmt + $format ("}");
+//      return fmt;
+//   endfunction
+//endinstance
+
+// Use reservation station instead of Data_StageD_to_Stage1 strcut
+typedef ReservationStation#(`RS_FPUMULDIV_SIZE, WrAggrPortNum, FpuMulDivRSData) ReservationStationFpuMulDiv;
+(* synthesize *)
+
+
+let globalReservationStation <- mkReservationStation(`LAZY_RS_RF, `RS_LAZY_ENQ, valueof(FpuMulDivExeNum) > 1);
+
+// pipeline fifos
+let RSgetInstruction <- mkDispToRegFifo;
+let regToExeQ <- mkRegToExeFifo;
+
+// wire to recv bypass
+Vector#(TMul#(2, AluExeNum), RWire#(Tuple2#(PhyRIndx, Data))) bypassWire <- replicateM(mkRWire);
+
+// mul div fpu func units
+MulDivExec mulDivExec <- mkMulDivExec;
+FpuExec fpuExec <- mkFpuExecPipeline;
+
+
+
 
 // ================================================================
 // Output from Stage 1
