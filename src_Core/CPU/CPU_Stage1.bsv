@@ -108,8 +108,13 @@ module mkCPU_Stage1 #(Bit #(4)         verbosity,
    let decoded_instr  = rg_stage_input.decoded_instr;
    let funct3         = decoded_instr.funct3;
 
+   // Import the register rename table
+   RegRenamingTable regRenamingTable <- mkRegRenamingTable;
+
    // Register rs1 read and bypass
-   let rs1 = decoded_instr.rs1;
+   let temp_rs1 = decoded_instr.rs1;
+
+   let rs1 = regRenamingTable.rename[0].getRename(temp_rs1);
    let rs1_val = gpr_regfile.read_rs1 (rs1);
    match { .busy1a, .rs1a } = fn_gpr_bypass (bypass_from_stage3, rs1, rs1_val);
    match { .busy1b, .rs1b } = fn_gpr_bypass (bypass_from_stage2, rs1, rs1a);
@@ -117,7 +122,8 @@ module mkCPU_Stage1 #(Bit #(4)         verbosity,
    Word rs1_val_bypassed = ((rs1 == 0) ? 0 : rs1b);
 
    // Register rs2 read and bypass
-   let rs2 = decoded_instr.rs2;
+   let temp_rs2 = decoded_instr.rs2;
+   let rs2 = regRenamingTable.rename[0].getRename(temp_rs2);
    let rs2_val = gpr_regfile.read_rs2 (rs2);
    match { .busy2a, .rs2a } = fn_gpr_bypass (bypass_from_stage3, rs2, rs2_val);
    match { .busy2b, .rs2b } = fn_gpr_bypass (bypass_from_stage2, rs2, rs2a);
