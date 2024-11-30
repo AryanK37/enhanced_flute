@@ -105,10 +105,62 @@ module mkCPU_StageD #(Bit #(4)  verbosity, MISA misa)
 
       // This stage is empty
       if (! rg_full) begin
-	 output_stageD.ostatus = OSTATUS_EMPTY;
+	      output_stageD.ostatus = OSTATUS_EMPTY;
       end
       else begin
-	 output_stageD.ostatus        = OSTATUS_PIPE;
+	      output_stageD.ostatus        = OSTATUS_PIPE;
+
+      // queue the decoded instructions to the re
+      // Example usage
+
+
+   if (inputs.decoded_instr.opcode == op_FMADD ||
+      inputs.decoded_instr.opcode == op_FMMUL ||
+      inputs.decoded_instr.opcode == op_FMSUB ||
+      inputs.decoded_instr.opcode == op_FMDIV
+   ) begin
+    if (!fpuMulDivRS.isFull()) begin
+        ReservationStationEntry entry = defaultValue;
+        entry.opType = FPUMulDiv;
+        entry.dest = rg_data.rd;
+        entry.operand1 = rg_data.rs1;
+        entry.operand2 = rg_data.rs2;
+        fpuMulDivRS.enqueue(entry);
+    end
+   end
+   else if ( inputs.decoded_instr.opcode == op_LOAD ) begin
+    if (!loadRS.isFull()) begin
+        ReservationStationEntry entry = defaultValue;
+        entry.opType = MemLoad;
+        entry.dest = rg_data.rd;
+        entry.dcache = rg_data.dcache;
+        LoadRS.enqueue(entry);
+    end
+   end
+   else if ( inputs.decoded_instr.opcode == op_STORE ) begin
+    if (!storeRS.isFull()) begin
+        ReservationStationEntry entry = defaultValue;
+        entry.opType = MemLoad;
+        entry.operand1 = rg_data.rs1;
+        entry.dcache = rg_data.dcache;
+        StoreRS.enqueue(entry);
+    end
+   end
+   else begin 
+    if (!aluRS.isFull()) begin
+        ReservationStationEntry entry = defaultValue;
+        entry.opType = ALUInstructions;
+        entry.dest = rg_data.rd;
+        entry.operand1 = rg_data.rs1;
+        entry.operand2 = rg_data.rs2;
+        aluRS.enqueue(entry);
+    end
+   end
+
+
+
+
+
 //	 output_stageD.data_to_stage1 = Data_StageD_to_Stage1 {pc:             rg_data.pc,
 //							       priv:           rg_data.priv,
 //							       epoch:          rg_data.epoch,
