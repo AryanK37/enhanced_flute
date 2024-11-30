@@ -162,6 +162,13 @@ module mkCPU_Stage3 #(Bit #(4)         verbosity,
 
    // ----------------
    // Actions on 'deq': writeback Rd and update CSR INSTRET
+   rule dequeueAluInstruction;
+    if (!aluRS.isEmpty()) begin
+        ReservationStationEntry entry <- aluRS.dequeue();
+        // Process the ALU instruction
+        aluRS.dequeueCommit();
+    end
+   endrule 
 
    function Action fa_deq;
       action
